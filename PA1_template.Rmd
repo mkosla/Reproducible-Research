@@ -1,0 +1,127 @@
+---
+title: "wk2 Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The following program utilizes acitivity tracker data.
+
+First we need to load in and preprocess the dataset from our working directory:
+```{r}
+#load data.table library
+library(data.table)
+#load in csv
+act <- read.csv(file="activity.csv", header=TRUE, na.strings='NA')
+#transform date var to date
+act$date <- as.Date(act$date, format = "%m/%d/%Y")
+#transform data into data.table to allow data.table functions
+act <- data.table(act)
+```
+**What is the mean total number of steps taken per day?**
+```{r} 
+
+#calculate sum of steps by day
+actsum <- act[,sum(steps), by = date]
+colnames(actsum)[2] <- 'steps'
+
+#create a histogram of the average by day
+hist(actsum$steps)
+
+#calculate average of total daily steps
+meanday <- mean(actsum$steps, na.rm=TRUE)
+print(meanday)
+#calculate median of total daily steps
+medday <- median(actsum$steps, na.rm=TRUE)
+print(medday)
+```
+The average total daily steps is **`r format(meanday, scientific=FALSE)`** 
+  and the median total daily steps is **`r as.integer(medday)`**
+
+**What is the average daily activity pattern?**
+```{r}
+#find the average number of steps taken at each interval
+
+intmean <- aggregate(act, by=list(act$interval), mean, na.rm=TRUE)
+
+
+#time series plot of the mean number of steps taken each day
+plot(intmean$interval,intmean$steps)
+
+#find the interval with the maximum number of steps on average
+
+#return the interval with the max average steps
+intmax <- intmean[which.max(intmean$steps),]$interval
+```
+The interval with the maximum average steps is **`r intmax`**
+
+
+```{r}
+countmissing <- sum(is.na(act$steps))
+```
+
+There are `r format(countmissing, scientific=FALSE)` missing values.
+
+***Impute missing values***
+*We impute using knn which will find the 10 closest neighbors in terms of intervals and date and impute the missing values. This helps since days and interval both seem to have a relationship with steps*
+
+
+
+```{r}
+#to install source("https://bioconductor.org/biocLite.R")
+#biocLite("impute")
+library(impute)
+#we will use the k-nearest neighbors to impute missing. This uses the 10 closest neighbors
+act2 <- data.matrix(act)
+act2 <- data.table(impute.knn(act2)$data)
+#fix date variable
+act2$date <- as.Date(act2$date, origin = "1970-01-01")
+```
+
+Find the total number of steps taken each day after imputation and report the mean and median.
+
+
+**Imputing Missing Values**
+
+```{r}
+#calculate sum of steps by day
+act2sum <- act2[,sum(steps), by = date]
+colnames(act2sum)[2] <- 'steps'
+
+hist(act2sum$steps)
+
+meanimputsteps <- mean(act2sum$steps)
+medianimputsteps <- median(act2sum$steps)
+
+```
+
+The average number of steps taken each day after imputation is **`r format(meanimputsteps,
+scientific=FALSE)`** and the median is **`r format(medianimputsteps, scientific=FALSE)`**.
+
+```{r}
+diffmean <- meanimputsteps-meanday
+diffmedian <- medianimputsteps-medday
+ 
+```
+Before imputing the missing values, the mean is **`r format(meanday, scientific=FALSE)`**,
+after imputation the mean is **`r format(meanimputsteps, scientific=FALSE)`**. This is a difference of **`r format(diffmean, scientific=FALSE)`**. In contrast, the original median is **`r format(medday, scientific=FALSE)`** and the imputed median is **`r format(medianimputsteps, scientific=FALSE)`**. This is a difference of **`r format(diffmedian, scientific=FALSE)`**.
+
+
+***Are there differences in activity patterns between weekdays and weekends?***
+```{r}
+#find day of week
+act2$day <- as.numeric(format(act2$date, format = "%u"))
+
+act2$daytype <- ifelse((act2$day == 6) | (act2$day==7), "Weekend", "Weekday")
+
+#panel plot
+library(ggplot2)
+ggplot(act2, aes(x=interval, y=steps)) +
+  stat_summary(fun.y = mean,
+               geom = "bar") +
+  facet_grid(.~act2$daytype)
+```
+
+ 
